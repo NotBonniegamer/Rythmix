@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RythMix - Ultra Wide Edition</title>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div id="game-wrapper">
+        <div id="screen-start" class="screen">
+            <h1 class="neon-title">RYTHMIX</h1>
+            <div class="setting-row">
+                <label>DIFFICULTY: <span id="diff-label">NORMALO</span></label>
+                <input type="range" id="diff-slider" min="0" max="6" value="2" oninput="updateDifficulty(this.value)">
+            </div>
+            <div class="glass-panel" id="song-list-container">
+                <p class="panel-title">SELECT TRACK</p>
+                <div id="song-list"></div>
+            </div>
+            <button class="menu-btn secondary" onclick="toggleSettings(true)">⚙ SETTINGS</button>
+        </div>
+
+        <div id="screen-settings" class="screen hidden">
+            <h2 class="neon-text-blue">SETTINGS</h2>
+            <div class="glass-panel settings-grid">
+                
+                <div class="setting-row">
+                    <label>CUSTOM SPEED: <span id="speed-val">12</span></label>
+                    <input type="range" id="speed-slider" min="5" max="35" value="12" oninput="updateCustomSpeed(this.value)">
+                </div>
+
+                <div class="setting-row">
+                    <label>NOTE COLORS</label>
+                    <div class="color-pickers">
+                        <input type="color" id="color-0" onchange="updateColor(0, this.value)">
+                        <input type="color" id="color-1" onchange="updateColor(1, this.value)">
+                        <input type="color" id="color-2" onchange="updateColor(2, this.value)">
+                        <input type="color" id="color-3" onchange="updateColor(3, this.value)">
+                    </div>
+                </div>
+
+                <div class="setting-row">
+                    <label>KEYBINDS</label>
+                    <div class="key-binds">
+                        <button class="key-btn" id="key-0" onclick="assignKey(0)">D</button>
+                        <button class="key-btn" id="key-1" onclick="assignKey(1)">F</button>
+                        <button class="key-btn" id="key-2" onclick="assignKey(2)">J</button>
+                        <button class="key-btn" id="key-3" onclick="assignKey(3)">K</button>
+                    </div>
+                </div>
+
+                <div class="setting-row quick-btns">
+                    <button id="btn-scroll" class="small-btn" onclick="toggleScrollDirection()">SCROLL: UP</button>
+                    <button id="btn-size" class="small-btn" onclick="changeNoteSize()">SIZE: XXL</button>
+                </div>
+            </div>
+            <button class="menu-btn" onclick="toggleSettings(false)">SAVE & BACK</button>
+        </div>
+
+        <div id="screen-game" class="screen hidden">
+            <div id="ui-overlay">
+                <div id="score-box">SCORE: <span id="score">0</span></div>
+                <div id="combo-box">
+                    <span id="combo-num"></span><br>
+                    <span id="judgment"></span>
+                </div>
+            </div>
+            <canvas id="gameCanvas"></canvas>
+            
+            <div id="pause-overlay" class="hidden">
+                <h1 class="neon-title" style="font-size: 4rem;">PAUSED</h1>
+                <div class="pause-menu">
+                    <button class="menu-btn" onclick="togglePause()">RESUME</button>
+                    <button class="menu-btn secondary" onclick="location.reload()">QUIT</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="screen-result" class="screen hidden">
+            <h2 class="neon-title">FINISH</h2>
+            <div class="glass-panel result-stats">
+                <p>FINAL SCORE<br><span id="final-score" class="highlight">0</span></p>
+                <p>MAX COMBO<br><span id="final-combo" class="highlight">0</span></p>
+            </div>
+            <button class="menu-btn" onclick="location.reload()">CONTINUE</button>
+        </div>
+    </div>
+    <script src="script.js"></script>
+    <script src="upload.js"></script>
+</body>
+</html>
