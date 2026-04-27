@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RythMix - Ultra Wide Edition</title>
+    <title>RythMix - Extra Edition</title>
     <link rel="stylesheet" href="style.css">
     <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&display=swap" rel="stylesheet">
 </head>
@@ -25,20 +25,13 @@
         <div id="screen-settings" class="screen hidden">
             <h2 class="neon-text-blue">SETTINGS</h2>
             <div class="glass-panel settings-grid">
-                
                 <div class="setting-row">
                     <label>CUSTOM SPEED: <span id="speed-val">12</span></label>
                     <input type="range" id="speed-slider" min="5" max="35" value="12" oninput="updateCustomSpeed(this.value)">
                 </div>
 
                 <div class="setting-row">
-                    <label>NOTE COLORS</label>
-                    <div class="color-pickers">
-                        <input type="color" id="color-0" onchange="updateColor(0, this.value)">
-                        <input type="color" id="color-1" onchange="updateColor(1, this.value)">
-                        <input type="color" id="color-2" onchange="updateColor(2, this.value)">
-                        <input type="color" id="color-3" onchange="updateColor(3, this.value)">
-                    </div>
+                    <button id="btn-extra" class="small-btn" style="padding: 15px;" onclick="toggleExtraMode()">EXTRA MODE: OFF</button>
                 </div>
 
                 <div class="setting-row">
@@ -83,11 +76,13 @@
             <div class="glass-panel result-stats">
                 <p>FINAL SCORE<br><span id="final-score" class="highlight">0</span></p>
                 <p>MAX COMBO<br><span id="final-combo" class="highlight">0</span></p>
+                <hr style="border: 0; border-top: 1px solid rgba(255,255,255,0.1); margin: 20px 0;">
+                <p class="panel-title">LOCAL TOP 5</p>
+                <div id="leaderboard-list"></div>
             </div>
             <button class="menu-btn" onclick="location.reload()">CONTINUE</button>
         </div>
     </div>
     <script src="script.js"></script>
-    <script src="upload.js"></script>
 </body>
 </html>
