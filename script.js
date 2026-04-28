@@ -26,7 +26,8 @@ const diffSettings = [
     { label: "EXPERT", threshold: 180, multiChance: 0.4, beatMin: 150, penalty: 40 },
     { label: "HACKER", threshold: 160, multiChance: 0.6, beatMin: 100, penalty: 60 },
     { label: "ELITE", threshold: 145, multiChance: 0.8, beatMin: 80, penalty: 80 },
-    { label: "GOD", threshold: 130, multiChance: 1.0, beatMin: 50, penalty: 100 }
+    { label: "GOD", threshold: 130, multiChance: 1.0, beatMin: 50, penalty: 100 },
+    { label: "WHY ARE YOU HERE?", threshold: 1000, multiChance: 100.0, beatMin: 25, penalty: 0 }
 ];
 
 let currentDiffIdx = 2; 
