@@ -16,7 +16,7 @@ let score = 0, combo = 0, maxCombo = 0;
 let notes = [], particles = [];
 let laneGlow = [0, 0, 0, 0];
 
-// --- NEU: EXTRA MODE & LEADERBOARD ---
+// --- EXTRA MODE & LEADERBOARD ---
 let isExtraMode = false; 
 
 const diffSettings = [
@@ -52,6 +52,7 @@ function loadData() {
         if(saved.size) noteSize = saved.size;
     }
 }
+
 function saveData() {
     localStorage.setItem('rythMixData', JSON.stringify({
         keys, colors: laneColors, speed: scrollSpeed, direction: scrollDirection, size: noteSize
@@ -62,22 +63,32 @@ function saveData() {
 function initUI() {
     loadData();
     const songList = document.getElementById("song-list");
-    songList.innerHTML = ""; // Clear existing
-    songDatabase.forEach(song => {
-        const btn = document.createElement("button");
-        btn.className = "song-card";
-        btn.innerHTML = `<span>▶</span> ${song.title}`;
-        btn.onclick = () => startGame(encodeURI(song.url));
-        songList.appendChild(btn);
-    });
-
-    document.getElementById("speed-slider").value = scrollSpeed;
-    document.getElementById("speed-val").innerText = scrollSpeed;
-    for(let i=0; i<4; i++) {
-        document.getElementById(`color-${i}`).value = laneColors[i];
-        document.getElementById(`key-${i}`).innerText = keys[i].toUpperCase();
+    if(songList) {
+        songList.innerHTML = ""; 
+        songDatabase.forEach(song => {
+            const btn = document.createElement("button");
+            btn.className = "song-card";
+            btn.innerHTML = `<span>▶</span> ${song.title}`;
+            btn.onclick = () => startGame(encodeURI(song.url));
+            songList.appendChild(btn);
+        });
     }
-    document.getElementById("btn-scroll").innerText = `SCROLL: ${scrollDirection.toUpperCase()}`;
+
+    // Set slider and color inputs to match saved data
+    if(document.getElementById("speed-slider")) {
+        document.getElementById("speed-slider").value = scrollSpeed;
+        document.getElementById("speed-val").innerText = scrollSpeed;
+    }
+    
+    for(let i=0; i<4; i++) {
+        const colorInput = document.getElementById(`color-${i}`);
+        const keyBtn = document.getElementById(`key-${i}`);
+        if(colorInput) colorInput.value = laneColors[i];
+        if(keyBtn) keyBtn.innerText = keys[i].toUpperCase();
+    }
+    
+    const scrollBtn = document.getElementById("btn-scroll");
+    if(scrollBtn) scrollBtn.innerText = `SCROLL: ${scrollDirection.toUpperCase()}`;
 }
 initUI();
 
@@ -105,7 +116,11 @@ function updateCustomSpeed(val) {
     document.getElementById("speed-val").innerText = scrollSpeed;
 }
 
-function updateColor(lane, color) { laneColors[lane] = color; }
+// FIX: Custom color now updates the array immediately
+function updateColor(lane, color) { 
+    laneColors[lane] = color; 
+    saveData();
+}
 
 let waitingForKey = -1;
 function assignKey(lane) {
@@ -121,13 +136,12 @@ function toggleScrollDirection() {
 }
 
 function changeNoteSize() {
-    noteSize = noteSize === 40 ? 55 : (noteSize === 55 ? 75 : (noteSize === 75 ? 35 : 55));
-    const label = noteSize === 35 ? "MEDIUM" : (noteSize === 75 ? "MONSTER" : "XXL");
+    noteSize = noteSize === 40 ? 55 : (noteSize === 55 ? 75 : (noteSize === 75 ? 35 : 40));
+    const label = noteSize === 35 ? "SMALL" : (noteSize === 40 ? "MEDIUM" : (noteSize === 55 ? "XXL" : "MONSTER"));
     document.getElementById("btn-size").innerText = `SIZE: ${label}`;
     updateLayout();
 }
 
-// NEU: Extra Mode Umschalter
 function toggleExtraMode() {
     isExtraMode = !isExtraMode;
     const btn = document.getElementById("btn-extra");
@@ -154,7 +168,7 @@ function setupAudio(url) {
     analyser.fftSize = 256;
     dataArray = new Uint8Array(analyser.frequencyBinCount);
     
-    audio.play().catch(e => console.log("Audio play failed, wait for user interaction."));
+    audio.play().catch(e => console.log("Audio play failed."));
     gameRunning = true;
     requestAnimationFrame(gameLoop);
     audio.onended = () => endGame();
@@ -184,7 +198,6 @@ function spawnNoteLogic() {
     const d = diffSettings[currentDiffIdx];
     const lane = Math.floor(Math.random() * 4);
     
-    // Extra Mode Logik: Chance auf Trap-Note (Weiß)
     if (isExtraMode && Math.random() < 0.2) {
         createNote(lane, "trap");
     } else {
@@ -200,7 +213,7 @@ function createNote(lane, type) {
     notes.push({
         lane: lane,
         y: startY,
-        type: type, // "tap" oder "trap"
+        type: type, 
         hitConfirmed: false
     });
 }
@@ -242,15 +255,30 @@ function updateNotes() {
         let n = notes[i];
         n.y += scrollDirection === "down" ? scrollSpeed : -scrollSpeed;
         
-        // Farbe: Trap ist weiß, Tap ist Lane-Farbe
+        let centerX = n.lane * laneWidth + (laneWidth/2);
+        
         ctx.shadowBlur = 25;
         ctx.shadowColor = n.type === "trap" ? "#ffffff" : laneColors[n.lane];
         ctx.fillStyle = n.type === "trap" ? "#ffffff" : laneColors[n.lane];
         
-        ctx.beginPath(); ctx.arc(n.lane * laneWidth + (laneWidth/2), n.y, noteSize, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); 
+        ctx.arc(centerX, n.y, noteSize, 0, Math.PI * 2); 
+        ctx.fill();
         ctx.shadowBlur = 0;
 
-        // MISS Check
+        // NEW: Draw "X" on trap notes
+        if (n.type === "trap") {
+            ctx.strokeStyle = "#111"; // Dark X for contrast on white
+            ctx.lineWidth = 5;
+            let offset = noteSize * 0.4;
+            ctx.beginPath();
+            ctx.moveTo(centerX - offset, n.y - offset);
+            ctx.lineTo(centerX + offset, n.y + offset);
+            ctx.moveTo(centerX + offset, n.y - offset);
+            ctx.lineTo(centerX - offset, n.y + offset);
+            ctx.stroke();
+        }
+
         if ((scrollDirection === "down" && n.y > canvas.height + 150) || 
             (scrollDirection === "up" && n.y < -150)) {
             if (n.type === "tap") { score -= 20; resetCombo(); }
@@ -275,20 +303,31 @@ function updateParticles() {
     ctx.globalAlpha = 1;
 }
 
-// --- INPUTS ---
+// --- INPUTS (FIXED KEYBINDING LOGIC) ---
 window.addEventListener("keydown", (e) => {
+    // Handling custom key assignment
     if(waitingForKey !== -1) {
         e.preventDefault();
-        keys[waitingForKey] = e.key.toLowerCase();
-        document.getElementById(`key-${waitingForKey}`).innerText = e.key.toUpperCase();
-        document.getElementById(`key-${waitingForKey}`).classList.remove("waiting");
-        waitingForKey = -1; return;
+        const newKey = e.key.toLowerCase();
+        keys[waitingForKey] = newKey;
+        
+        const btn = document.getElementById(`key-${waitingForKey}`);
+        btn.innerText = newKey.toUpperCase();
+        btn.classList.remove("waiting");
+        
+        waitingForKey = -1; 
+        saveData(); // Save new keybinds immediately
+        return;
     }
+    
     if (e.code === "Space" && gameRunning) { e.preventDefault(); togglePause(); return; }
     if (isPaused || !gameRunning) return;
 
     const lane = keys.indexOf(e.key.toLowerCase());
-    if (lane !== -1) { laneGlow[lane] = 15; checkHit(lane); }
+    if (lane !== -1) { 
+        laneGlow[lane] = 15; 
+        checkHit(lane); 
+    }
 });
 
 function checkHit(lane) {
@@ -300,7 +339,6 @@ function checkHit(lane) {
         let n = notes[i];
         if (n.lane === lane && Math.abs(n.y - hitZoneY) < (noteSize + 50)) {
             if (n.type === "trap") {
-                // STRAFE für weiße Noten
                 score -= 100;
                 resetCombo();
                 updateUI("POISON!", "#ffffff");
@@ -317,18 +355,28 @@ function checkHit(lane) {
             return;
         }
     }
-    if (!hitFound) { score -= penalty; resetCombo(); updateUI("MISS", "#ff0000"); }
+    if (!hitFound) { 
+        score -= penalty; 
+        resetCombo(); 
+        updateUI("MISS", "#ff0000"); 
+    }
 }
 
 function updateUI(text, color) {
     document.getElementById("score").innerText = score;
     document.getElementById("combo-num").innerText = combo > 0 ? combo : "";
     const j = document.getElementById("judgment");
-    j.innerText = text; j.style.color = color;
-    setTimeout(() => { if(j.innerText === text) j.innerText = ""; }, 500);
+    if(j) {
+        j.innerText = text; j.style.color = color;
+        setTimeout(() => { if(j.innerText === text) j.innerText = ""; }, 500);
+    }
 }
 
-function resetCombo() { combo = 0; document.getElementById("combo-num").innerText = ""; }
+function resetCombo() { 
+    combo = 0; 
+    const comboEl = document.getElementById("combo-num");
+    if(comboEl) comboEl.innerText = ""; 
+}
 
 function endGame() {
     gameRunning = false;
@@ -339,12 +387,11 @@ function endGame() {
     saveLeaderboard(score);
 }
 
-// --- NEU: LOCAL LEADERBOARD ---
 function saveLeaderboard(newScore) {
     let leaderboard = JSON.parse(localStorage.getItem('rythMixLeaderboard')) || [];
     leaderboard.push({ score: newScore, date: new Date().toLocaleDateString() });
     leaderboard.sort((a, b) => b.score - a.score);
-    leaderboard = leaderboard.slice(0, 5); // Top 5
+    leaderboard = leaderboard.slice(0, 5);
     localStorage.setItem('rythMixLeaderboard', JSON.stringify(leaderboard));
     
     const list = document.getElementById("leaderboard-list");
