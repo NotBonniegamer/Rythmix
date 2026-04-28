@@ -9,7 +9,7 @@
 // --- 1. DATEN & KONFIGURATION ---
 
 const songDatabase = [
-    { title: "Cyber Track 1", url: "songs/Song 1.mp3", bpm: 128 },
+    { title: "Cyber Track", url: "songs/Song 1.mp3", bpm: 128 },
     { title: "Neon Drift", url: "songs/Song 2.mp3", bpm: 140 },
     { title: "Bass Line", url: "songs/Song 3.mp3", bpm: 120 },
     { title: "Rave Line", url: "songs/Song 4.mp3", bpm: 155 },
