@@ -16,6 +16,11 @@ let score = 0, combo = 0, maxCombo = 0;
 let notes = [], particles = [];
 let laneGlow = [0, 0, 0, 0];
 
+// --- LEBENS SYSTEM ---
+let lives = 4;
+const maxLives = 4;
+const regenSpeed = 0.0008; // Langsame Heilung pro Frame
+
 // --- EXTRA MODE & LEADERBOARD ---
 let isExtraMode = false; 
 
@@ -52,7 +57,6 @@ function loadData() {
         if(saved.size) noteSize = saved.size;
     }
 }
-
 function saveData() {
     localStorage.setItem('rythMixData', JSON.stringify({
         keys, colors: laneColors, speed: scrollSpeed, direction: scrollDirection, size: noteSize
@@ -69,65 +73,64 @@ function initUI() {
             const btn = document.createElement("button");
             btn.className = "song-card";
             btn.innerHTML = `<span>▶</span> ${song.title}`;
-            btn.onclick = () => startGame(encodeURI(song.url));
+            btn.onclick = () => showPreGamePreview(encodeURI(song.url));
             songList.appendChild(btn);
         });
     }
 
-    // Set slider and color inputs to match saved data
     if(document.getElementById("speed-slider")) {
         document.getElementById("speed-slider").value = scrollSpeed;
         document.getElementById("speed-val").innerText = scrollSpeed;
     }
-    
     for(let i=0; i<4; i++) {
-        const colorInput = document.getElementById(`color-${i}`);
-        const keyBtn = document.getElementById(`key-${i}`);
-        if(colorInput) colorInput.value = laneColors[i];
-        if(keyBtn) keyBtn.innerText = keys[i].toUpperCase();
+        if(document.getElementById(`color-${i}`)) document.getElementById(`color-${i}`).value = laneColors[i];
+        if(document.getElementById(`key-${i}`)) document.getElementById(`key-${i}`).innerText = keys[i].toUpperCase();
     }
-    
-    const scrollBtn = document.getElementById("btn-scroll");
-    if(scrollBtn) scrollBtn.innerText = `SCROLL: ${scrollDirection.toUpperCase()}`;
 }
 initUI();
+
+// --- PRE-GAME PREVIEW ---
+function showPreGamePreview(url) {
+    saveData();
+    updateLayout();
+    document.getElementById("screen-start").classList.add("hidden");
+    
+    // Erstelle ein einfaches Overlay für die Settings-Vorschau
+    const preview = document.createElement("div");
+    preview.id = "game-preview";
+    preview.style = "position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.9); display:flex; flex-direction:column; align-items:center; justify-content:center; color:white; z-index:100; font-family:sans-serif;";
+    preview.innerHTML = `
+        <h1 style="color:#00eeff">GET READY</h1>
+        <div style="background:rgba(255,255,255,0.1); padding:20px; border-radius:15px; text-align:center; min-width:300px">
+            <p>Difficulty: <b>${diffSettings[currentDiffIdx].label}</b></p>
+            <p>Speed: <b>${scrollSpeed}</b></p>
+            <p>Keys: <b>${keys.join(" ").toUpperCase()}</b></p>
+            <p>Extra Mode: <b>${isExtraMode ? "ON" : "OFF"}</b></p>
+        </div>
+        <h2 id="countdown">3</h2>
+    `;
+    document.body.appendChild(preview);
+
+    let count = 3;
+    const interval = setInterval(() => {
+        count--;
+        document.getElementById("countdown").innerText = count;
+        if(count <= 0) {
+            clearInterval(interval);
+            document.body.removeChild(preview);
+            startGame(url);
+        }
+    }, 1000);
+}
 
 function updateLayout() {
     laneWidth = noteSize * 2.8; 
     canvas.width = laneWidth * 4;
 }
 
-function toggleSettings(show) {
-    document.getElementById("screen-start").classList.toggle("hidden", show);
-    document.getElementById("screen-settings").classList.toggle("hidden", !show);
-    if(!show) saveData();
-}
-
-// --- SETTINGS LOGIC ---
-function updateDifficulty(val) {
-    currentDiffIdx = parseInt(val);
-    const d = diffSettings[currentDiffIdx];
-    document.getElementById("diff-label").innerText = d.label;
-    threshold = d.threshold;
-}
-
-function updateCustomSpeed(val) {
-    scrollSpeed = parseInt(val);
-    document.getElementById("speed-val").innerText = scrollSpeed;
-}
-
-// FIX: Custom color now updates the array immediately
 function updateColor(lane, color) { 
     laneColors[lane] = color; 
     saveData();
-}
-
-let waitingForKey = -1;
-function assignKey(lane) {
-    waitingForKey = lane;
-    const btn = document.getElementById(`key-${lane}`);
-    btn.innerText = "...";
-    btn.classList.add("waiting");
 }
 
 function toggleScrollDirection() {
@@ -135,24 +138,13 @@ function toggleScrollDirection() {
     document.getElementById("btn-scroll").innerText = `SCROLL: ${scrollDirection.toUpperCase()}`;
 }
 
-function changeNoteSize() {
-    noteSize = noteSize === 40 ? 55 : (noteSize === 55 ? 75 : (noteSize === 75 ? 35 : 40));
-    const label = noteSize === 35 ? "SMALL" : (noteSize === 40 ? "MEDIUM" : (noteSize === 55 ? "XXL" : "MONSTER"));
-    document.getElementById("btn-size").innerText = `SIZE: ${label}`;
-    updateLayout();
-}
-
-function toggleExtraMode() {
-    isExtraMode = !isExtraMode;
-    const btn = document.getElementById("btn-extra");
-    if(btn) btn.innerText = `EXTRA MODE: ${isExtraMode ? "ON" : "OFF"}`;
-}
-
 // --- ENGINE ---
 async function startGame(url) {
-    saveData();
-    updateLayout(); 
-    document.getElementById("screen-start").classList.add("hidden");
+    lives = 4; // Reset Leben
+    score = 0; // Reset Score
+    combo = 0;
+    maxCombo = 0;
+    notes = [];
     document.getElementById("screen-game").classList.remove("hidden");
     setupAudio(url);
 }
@@ -174,12 +166,88 @@ function setupAudio(url) {
     audio.onended = () => endGame();
 }
 
-function togglePause() {
-    if(!gameRunning) return;
-    isPaused = !isPaused;
-    const overlay = document.getElementById("pause-overlay");
-    if(isPaused) { audio.pause(); overlay.classList.remove("hidden"); } 
-    else { audio.play(); overlay.classList.add("hidden"); requestAnimationFrame(gameLoop); }
+function gameLoop() {
+    if (!gameRunning || isPaused) return;
+    canvas.height = window.innerHeight;
+    
+    // Langsame Regeneration
+    if(lives < maxLives) lives += regenSpeed;
+    if(lives <= 0) { endGame(); return; }
+
+    ctx.fillStyle = "rgba(10, 10, 14, 0.8)"; 
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    
+    drawEnvironment();
+    drawLifeBar();
+    handleAudioAnalysis();
+    updateNotes();
+    updateParticles();
+    requestAnimationFrame(gameLoop);
+}
+
+function drawLifeBar() {
+    const barWidth = 200;
+    const barHeight = 15;
+    const x = canvas.width - barWidth - 20;
+    const y = 20;
+
+    // Hintergrund
+    ctx.fillStyle = "rgba(255,255,255,0.1)";
+    ctx.fillRect(x, y, barWidth, barHeight);
+    
+    // Leben-Füllung
+    let color = lives > 1.5 ? "#00eeff" : "#ff0055";
+    ctx.fillStyle = color;
+    ctx.fillRect(x, y, (lives / maxLives) * barWidth, barHeight);
+    
+    // Text
+    ctx.fillStyle = "white";
+    ctx.font = "12px Arial";
+    ctx.fillText("ENERGY", x, y - 5);
+}
+
+function updateNotes() {
+    const hitZoneY = scrollDirection === "down" ? canvas.height * 0.85 : canvas.height * 0.15;
+
+    for (let i = notes.length - 1; i >= 0; i--) {
+        let n = notes[i];
+        n.y += scrollDirection === "down" ? scrollSpeed : -scrollSpeed;
+        
+        let centerX = n.lane * laneWidth + (laneWidth/2);
+        
+        // Zeichne Note
+        ctx.shadowBlur = 25;
+        ctx.shadowColor = n.type === "trap" ? "#ffffff" : laneColors[n.lane];
+        ctx.fillStyle = n.type === "trap" ? "#ffffff" : laneColors[n.lane];
+        ctx.beginPath(); 
+        ctx.arc(centerX, n.y, noteSize, 0, Math.PI * 2); 
+        ctx.fill();
+        ctx.shadowBlur = 0;
+
+        // "X" auf Traps
+        if (n.type === "trap") {
+            ctx.strokeStyle = "#111";
+            ctx.lineWidth = 5;
+            let offset = noteSize * 0.4;
+            ctx.beginPath();
+            ctx.moveTo(centerX - offset, n.y - offset); ctx.lineTo(centerX + offset, n.y + offset);
+            ctx.moveTo(centerX + offset, n.y - offset); ctx.lineTo(centerX - offset, n.y + offset);
+            ctx.stroke();
+        }
+
+        // MISS Check (Noten fliegen aus dem Bild)
+        if ((scrollDirection === "down" && n.y > canvas.height + 50) || 
+            (scrollDirection === "up" && n.y < -50)) {
+            
+            if (n.type === "tap") { 
+                score -= 50;  // Minus-Punkte wenn man nicht klickt
+                lives -= 1;   // Leben abziehen
+                resetCombo(); 
+                updateUI("MISS", "#ff0000");
+            }
+            notes.splice(i, 1);
+        }
+    }
 }
 
 function handleAudioAnalysis() {
@@ -197,43 +265,76 @@ function handleAudioAnalysis() {
 function spawnNoteLogic() {
     const d = diffSettings[currentDiffIdx];
     const lane = Math.floor(Math.random() * 4);
-    
-    if (isExtraMode && Math.random() < 0.2) {
-        createNote(lane, "trap");
-    } else {
+    if (isExtraMode && Math.random() < 0.2) createNote(lane, "trap");
+    else {
         createNote(lane, "tap");
-        if (Math.random() < d.multiChance) {
-            createNote((lane + 1) % 4, "tap");
-        }
+        if (Math.random() < d.multiChance) createNote((lane + 1) % 4, "tap");
     }
 }
 
 function createNote(lane, type) {
     const startY = scrollDirection === "down" ? -100 : canvas.height + 100;
-    notes.push({
-        lane: lane,
-        y: startY,
-        type: type, 
-        hitConfirmed: false
-    });
+    notes.push({ lane, y: startY, type, hitConfirmed: false });
 }
 
-function gameLoop() {
-    if (!gameRunning || isPaused) return;
-    canvas.height = window.innerHeight;
-    ctx.fillStyle = "rgba(10, 10, 14, 0.8)"; 
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    drawEnvironment();
-    handleAudioAnalysis();
-    updateNotes();
-    updateParticles();
-    requestAnimationFrame(gameLoop);
+function checkHit(lane) {
+    const hitZoneY = scrollDirection === "down" ? canvas.height * 0.85 : canvas.height * 0.15;
+    let hitFound = false;
+    const penalty = diffSettings[currentDiffIdx].penalty;
+
+    for (let i = 0; i < notes.length; i++) {
+        let n = notes[i];
+        if (n.lane === lane && Math.abs(n.y - hitZoneY) < (noteSize + 50)) {
+            if (n.type === "trap") {
+                score -= 100;
+                lives -= 1; // Trap kostet ein Leben
+                resetCombo();
+                updateUI("POISON!", "#ffffff");
+                createParticles(n.lane * laneWidth + (laneWidth/2), n.y, "#ffffff");
+            } else {
+                score += 100 + (combo * 10);
+                combo++;
+                if(combo > maxCombo) maxCombo = combo;
+                updateUI("PERFECT", laneColors[lane]);
+                createParticles(lane * laneWidth + (laneWidth/2), hitZoneY, laneColors[lane]);
+            }
+            notes.splice(i, 1);
+            hitFound = true;
+            return;
+        }
+    }
+    // Fehlklick ins Leere
+    if (!hitFound) { 
+        score -= penalty; 
+        lives -= 0.2; // Kleiner Abzug für Spamming
+        resetCombo(); 
+        updateUI("MISS", "#ff0000"); 
+    }
 }
+
+// --- INPUTS (MIT KORREKTEM KEYBINDING) ---
+window.addEventListener("keydown", (e) => {
+    if(waitingForKey !== -1) {
+        const newKey = e.key.toLowerCase();
+        keys[waitingForKey] = newKey;
+        document.getElementById(`key-${waitingForKey}`).innerText = newKey.toUpperCase();
+        document.getElementById(`key-${waitingForKey}`).classList.remove("waiting");
+        waitingForKey = -1; saveData(); return;
+    }
+    if (e.code === "Space" && gameRunning) { e.preventDefault(); togglePause(); return; }
+    if (isPaused || !gameRunning) return;
+
+    const lane = keys.indexOf(e.key.toLowerCase());
+    if (lane !== -1) { 
+        laneGlow[lane] = 15; 
+        checkHit(lane); 
+    }
+});
 
 function drawEnvironment() {
     const hitZoneY = scrollDirection === "down" ? canvas.height * 0.85 : canvas.height * 0.15;
-    ctx.strokeStyle = "rgba(255, 255, 255, 0.05)";
     for(let i=1; i<4; i++) {
+        ctx.strokeStyle = "rgba(255, 255, 255, 0.05)";
         ctx.beginPath(); ctx.moveTo(i * laneWidth, 0); ctx.lineTo(i * laneWidth, canvas.height); ctx.stroke();
     }
     for (let i = 0; i < 4; i++) {
@@ -250,49 +351,29 @@ function drawEnvironment() {
     }
 }
 
-function updateNotes() {
-    for (let i = notes.length - 1; i >= 0; i--) {
-        let n = notes[i];
-        n.y += scrollDirection === "down" ? scrollSpeed : -scrollSpeed;
-        
-        let centerX = n.lane * laneWidth + (laneWidth/2);
-        
-        ctx.shadowBlur = 25;
-        ctx.shadowColor = n.type === "trap" ? "#ffffff" : laneColors[n.lane];
-        ctx.fillStyle = n.type === "trap" ? "#ffffff" : laneColors[n.lane];
-        
-        ctx.beginPath(); 
-        ctx.arc(centerX, n.y, noteSize, 0, Math.PI * 2); 
-        ctx.fill();
-        ctx.shadowBlur = 0;
-
-        // NEW: Draw "X" on trap notes
-        if (n.type === "trap") {
-            ctx.strokeStyle = "#111"; // Dark X for contrast on white
-            ctx.lineWidth = 5;
-            let offset = noteSize * 0.4;
-            ctx.beginPath();
-            ctx.moveTo(centerX - offset, n.y - offset);
-            ctx.lineTo(centerX + offset, n.y + offset);
-            ctx.moveTo(centerX + offset, n.y - offset);
-            ctx.lineTo(centerX - offset, n.y + offset);
-            ctx.stroke();
-        }
-
-        if ((scrollDirection === "down" && n.y > canvas.height + 150) || 
-            (scrollDirection === "up" && n.y < -150)) {
-            if (n.type === "tap") { score -= 20; resetCombo(); }
-            notes.splice(i, 1);
-        }
+function updateUI(text, color) {
+    document.getElementById("score").innerText = Math.floor(score);
+    document.getElementById("combo-num").innerText = combo > 0 ? combo : "";
+    const j = document.getElementById("judgment");
+    if(j) {
+        j.innerText = text; j.style.color = color;
+        setTimeout(() => { if(j.innerText === text) j.innerText = ""; }, 500);
     }
 }
 
-function createParticles(x, y, color) {
-    for (let i = 0; i < 20; i++) {
-        particles.push({ x, y, vx: (Math.random()-0.5)*15, vy: (Math.random()-0.5)*15, life: 1.0, color });
-    }
+function resetCombo() { combo = 0; if(document.getElementById("combo-num")) document.getElementById("combo-num").innerText = ""; }
+
+function endGame() {
+    if(audio) audio.pause();
+    gameRunning = false;
+    document.getElementById("screen-game").classList.add("hidden");
+    document.getElementById("screen-result").classList.remove("hidden");
+    document.getElementById("final-score").innerText = Math.floor(score);
+    document.getElementById("final-combo").innerText = maxCombo;
+    saveLeaderboard(Math.floor(score));
 }
 
+// Restliche Funktionen (updateParticles, createParticles, etc.) bleiben gleich...
 function updateParticles() {
     particles.forEach((p, i) => {
         p.x += p.vx; p.y += p.vy; p.life -= 0.04;
@@ -303,88 +384,10 @@ function updateParticles() {
     ctx.globalAlpha = 1;
 }
 
-// --- INPUTS (FIXED KEYBINDING LOGIC) ---
-window.addEventListener("keydown", (e) => {
-    // Handling custom key assignment
-    if(waitingForKey !== -1) {
-        e.preventDefault();
-        const newKey = e.key.toLowerCase();
-        keys[waitingForKey] = newKey;
-        
-        const btn = document.getElementById(`key-${waitingForKey}`);
-        btn.innerText = newKey.toUpperCase();
-        btn.classList.remove("waiting");
-        
-        waitingForKey = -1; 
-        saveData(); // Save new keybinds immediately
-        return;
+function createParticles(x, y, color) {
+    for (let i = 0; i < 20; i++) {
+        particles.push({ x, y, vx: (Math.random()-0.5)*15, vy: (Math.random()-0.5)*15, life: 1.0, color });
     }
-    
-    if (e.code === "Space" && gameRunning) { e.preventDefault(); togglePause(); return; }
-    if (isPaused || !gameRunning) return;
-
-    const lane = keys.indexOf(e.key.toLowerCase());
-    if (lane !== -1) { 
-        laneGlow[lane] = 15; 
-        checkHit(lane); 
-    }
-});
-
-function checkHit(lane) {
-    const hitZoneY = scrollDirection === "down" ? canvas.height * 0.85 : canvas.height * 0.15;
-    let hitFound = false;
-    const penalty = diffSettings[currentDiffIdx].penalty;
-
-    for (let i = 0; i < notes.length; i++) {
-        let n = notes[i];
-        if (n.lane === lane && Math.abs(n.y - hitZoneY) < (noteSize + 50)) {
-            if (n.type === "trap") {
-                score -= 100;
-                resetCombo();
-                updateUI("POISON!", "#ffffff");
-                createParticles(n.lane * laneWidth + (laneWidth/2), n.y, "#ffffff");
-            } else {
-                score += 100 + (combo * 10);
-                combo++;
-                if(combo > maxCombo) maxCombo = combo;
-                updateUI("PERFECT", laneColors[lane]);
-                createParticles(lane * laneWidth + (laneWidth/2), hitZoneY, laneColors[lane]);
-            }
-            notes.splice(i, 1);
-            hitFound = true;
-            return;
-        }
-    }
-    if (!hitFound) { 
-        score -= penalty; 
-        resetCombo(); 
-        updateUI("MISS", "#ff0000"); 
-    }
-}
-
-function updateUI(text, color) {
-    document.getElementById("score").innerText = score;
-    document.getElementById("combo-num").innerText = combo > 0 ? combo : "";
-    const j = document.getElementById("judgment");
-    if(j) {
-        j.innerText = text; j.style.color = color;
-        setTimeout(() => { if(j.innerText === text) j.innerText = ""; }, 500);
-    }
-}
-
-function resetCombo() { 
-    combo = 0; 
-    const comboEl = document.getElementById("combo-num");
-    if(comboEl) comboEl.innerText = ""; 
-}
-
-function endGame() {
-    gameRunning = false;
-    document.getElementById("screen-game").classList.add("hidden");
-    document.getElementById("screen-result").classList.remove("hidden");
-    document.getElementById("final-score").innerText = score;
-    document.getElementById("final-combo").innerText = maxCombo;
-    saveLeaderboard(score);
 }
 
 function saveLeaderboard(newScore) {
@@ -393,11 +396,4 @@ function saveLeaderboard(newScore) {
     leaderboard.sort((a, b) => b.score - a.score);
     leaderboard = leaderboard.slice(0, 5);
     localStorage.setItem('rythMixLeaderboard', JSON.stringify(leaderboard));
-    
-    const list = document.getElementById("leaderboard-list");
-    if(list) {
-        list.innerHTML = leaderboard.map((entry, i) => 
-            `<div class="lb-entry">#${i+1} - ${entry.score} pts (${entry.date})</div>`
-        ).join("");
-    }
 }
