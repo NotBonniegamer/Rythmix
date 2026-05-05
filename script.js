@@ -46,7 +46,7 @@ let totalNotesSpawned = 0;
 // Life System
 let lives = 4;
 const maxLives = 4;
-const regenSpeed = 0.0008; // Regeneration pro Frame
+const regenSpeed = 0.5; // Regeneration pro Frame
 
 // Audio Kontext
 let audioCtx, analyser, dataArray, source, audio;
