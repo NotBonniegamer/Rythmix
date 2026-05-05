@@ -23,14 +23,11 @@ const songDatabase = [
 // Schwierigkeitsgrade (Slider Stufen 0-7) 
 // beatMin wird intern nicht mehr für den Rhythmus genutzt, Rhythmus ist jetzt 100% Song-basiert!
 const diffSettings = [
-    { label: "BABY", threshold: 240, multiChance: 0.0, beatMin: 400, penalty: 10 },
-    { label: "BEGINNER", threshold: 220, multiChance: 0.1, beatMin: 300, penalty: 20 },
-    { label: "NORMALO", threshold: 200, multiChance: 0.2, beatMin: 200, penalty: 25 },
-    { label: "EXPERT", threshold: 180, multiChance: 0.4, beatMin: 150, penalty: 40 },
-    { label: "HACKER", threshold: 160, multiChance: 0.6, beatMin: 100, penalty: 60 },
-    { label: "ELITE", threshold: 145, multiChance: 0.8, beatMin: 80, penalty: 80 },
-    { label: "GOD", threshold: 130, multiChance: 1.0, beatMin: 50, penalty: 100 },
-    { label: "WHY ARE YOU HERE?", threshold: 1000, multiChance: 100.0, beatMin: 20, penalty: 0 }
+    { label: "BABY", threshold: 240, multiChance: 0.0, beatMin: 400, penalty: -1000000 },
+    { label: "BEGINNER", threshold: 220, multiChance: 0.1, beatMin: 300, penalty: 200 },
+    { label: "NORMALO", threshold: 200, multiChance: 0.2, beatMin: 200, penalty: 500 },
+    { label: "EXPERT", threshold: 180, multiChance: 0.4, beatMin: 150, penalty: 800 },
+    { label: "HACKER", threshold: 160, multiChance: 0.6, beatMin: 100, penalty: 1000 }
 ];
 
 // --- 2. GLOBALE VARIABLEN ---
