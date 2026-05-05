@@ -1,23 +1,23 @@
 /**
- * RYTH-MIX ULTRA ENGINE v4.0 - FINAL INTEGRATION
+ * RYTH-MIX ULTRA ENGINE v4.0 - FINAL INTEGRATION (VSRG PATTERN UPDATE)
  * ----------------------------------------------
  * Vollständig kompatibel mit dem bereitgestellten HTML.
  * Inklusive: Pause-System, Lebens-Regeneration, Minus-Punkte, 
- * Settings-Menü & "Why are you here?" Extreme Mode.
+ * Settings-Menü, "Why are you here?" Extreme Mode & VSRG PATTERN SYSTEM.
  */
 
 // --- 1. DATEN & KONFIGURATION ---
 
 const songDatabase = [
-    { title: "Cyber Track", url: "songs/Song 1.mp3", bpm: 128 },
-    { title: "Neon Drift", url: "songs/Song 2.mp3", bpm: 140 },
-    { title: "Bass Line", url: "songs/Song 3.mp3", bpm: 120 },
-    { title: "Rave Line", url: "songs/Song 4.mp3", bpm: 155 },
-    { title: "Controlele", url: "songs/Song 5.mp3", bpm: 110 },
-    { title: "D.M.", url: "songs/Song 6.mp3", bpm: 132 },
-    { title: "Synth Wave", url: "songs/Song 7.mp3", bpm: 100 },
-    { title: "Hyper Drive", url: "songs/Song 8.mp3", bpm: 180 },
-    { title: "Wildunfall", url: "songs/Song 9.mp3", bpm: 240 }
+    { title: "Cyber Track", url: "songs/Song 1.mp3", bpm: 128, genre: "tech" },
+    { title: "Neon Drift", url: "songs/Song 2.mp3", bpm: 140, genre: "stream" },
+    { title: "Bass Line", url: "songs/Song 3.mp3", bpm: 120, genre: "default" },
+    { title: "Rave Line", url: "songs/Song 4.mp3", bpm: 155, genre: "hardstyle" },
+    { title: "Controlele", url: "songs/Song 5.mp3", bpm: 110, genre: "tech" },
+    { title: "D.M.", url: "songs/Song 6.mp3", bpm: 132, genre: "hardstyle" },
+    { title: "Synth Wave", url: "songs/Song 7.mp3", bpm: 100, genre: "stream" },
+    { title: "Hyper Drive", url: "songs/Song 8.mp3", bpm: 180, genre: "stream" },
+    { title: "Wildunfall", url: "songs/Song 9.mp3", bpm: 240, genre: "hardstyle" }
 ];
 
 // Schwierigkeitsgrade (Slider Stufen 0-7)
@@ -69,6 +69,22 @@ let isExtraMode = false;
 let keys = ['d', 'f', 'j', 'k'];
 let laneColors = ["#ff0055", "#00eeff", "#00eeff", "#ff0055"];
 let waitingForKey = -1;
+
+// Pattern System Variablen
+let currentSong = null;
+let activePattern = null;
+let patternIndex = 0;
+
+// VSRG Pattern Bibliothek (aus dem Glossar)
+const VSRG_PATTERNS = {
+    "SINGLE_STREAM": [[0], [2], [1], [3]],
+    "STAIRCASE": [[0], [1], [2], [3]],
+    "REVERSE_STAIRCASE": [[3], [2], [1], [0]],
+    "ROLL": [[0], [1], [2], [3], [2], [1]],
+    "MINIJACK": [[0], [0], [3], [3], [1], [1], [2], [2]],
+    "CHORDJACK": [[0, 2], [1, 3], [0, 3], [1, 2]],
+    "JUMPSTREAM": [[0, 3], [1], [2], [0, 3], [2], [1]]
+};
 
 // Canvas Referenz
 const canvas = document.getElementById("gameCanvas");
@@ -223,9 +239,13 @@ function showPreGamePreview(url) {
 }
 
 function startGame(url) {
-    // Reset Stats
+    // Finde den passenden Song für das Pattern-System
+    currentSong = songDatabase.find(s => encodeURI(s.url) === url || s.url === url) || songDatabase[0];
+    
+    // Reset Stats & Patterns
     score = 0; combo = 0; maxCombo = 0; notesHit = 0; totalNotesSpawned = 0;
     lives = 4; notes = []; particles = [];
+    activePattern = null; patternIndex = 0;
     
     document.getElementById("screen-game").classList.remove("hidden");
     document.getElementById("score").innerText = "0";
@@ -298,21 +318,49 @@ function handleAudioAnalysis() {
     }
 }
 
+// --- VSRG PATTERN HELPER ---
+function getPatternForGenre(genre) {
+    const pools = {
+        "hardstyle": ["CHORDJACK", "JUMPSTREAM", "MINIJACK"],
+        "tech": ["STAIRCASE", "REVERSE_STAIRCASE", "MINIJACK", "SINGLE_STREAM"],
+        "stream": ["ROLL", "SINGLE_STREAM", "STAIRCASE"],
+        "default": ["SINGLE_STREAM", "ROLL"]
+    };
+    const pool = pools[genre] || pools["default"];
+    const pName = pool[Math.floor(Math.random() * pool.length)];
+    return VSRG_PATTERNS[pName];
+}
+
 function spawnNote() {
-    const lane = Math.floor(Math.random() * 4);
+    // 1. Wenn Pattern zu Ende, weise ein neues passend zum Genre zu
+    if (!activePattern || patternIndex >= activePattern.length) {
+        let genre = currentSong ? currentSong.genre : "default";
+        activePattern = getPatternForGenre(genre);
+        patternIndex = 0;
+    }
+
+    // 2. Lese Lanes aus dem aktuellen Pattern-Step aus
+    const lanesToSpawn = activePattern[patternIndex];
     const startY = (scrollDirection === "down") ? -100 : canvas.height + 100;
     
     let type = "tap";
     if (isExtraMode && Math.random() < 0.2) type = "trap";
     
-    notes.push({ lane, y: startY, type });
-    totalNotesSpawned++;
-
-    // Chance auf Doppel-Noten bei hoher Difficulty
-    if (Math.random() < diffSettings[currentDiffIdx].multiChance) {
-        let lane2 = (lane + 1) % 4;
-        notes.push({ lane: lane2, y: startY, type: "tap" });
+    // 3. Spawne die Noten exakt auf den vorgegebenen Pattern-Lanes
+    lanesToSpawn.forEach(lane => {
+        notes.push({ lane, y: startY, type });
         totalNotesSpawned++;
+    });
+
+    patternIndex++;
+
+    // Chance auf zusätzliche Doppel-Noten (Originale Logik bleibt intakt, überschneidet sich aber nicht mit Pattern)
+    if (Math.random() < diffSettings[currentDiffIdx].multiChance) {
+        let extraLane = Math.floor(Math.random() * 4);
+        if (!lanesToSpawn.includes(extraLane)) {
+            notes.push({ lane: extraLane, y: startY, type: "tap" });
+            totalNotesSpawned++;
+        }
     }
 }
 
