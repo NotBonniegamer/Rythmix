@@ -1,9 +1,9 @@
 /**
- * RYTH-MIX ULTRA ENGINE v4.0 - FINAL INTEGRATION (VSRG PATTERN UPDATE)
+ * RYTH-MIX ULTRA ENGINE v4.0 - FINAL INTEGRATION (TRUE AUDIO SYNC UPDATE)
  * ----------------------------------------------
  * Vollständig kompatibel mit dem bereitgestellten HTML.
  * Inklusive: Pause-System, Lebens-Regeneration, Minus-Punkte, 
- * Settings-Menü, "Why are you here?" Extreme Mode & VSRG PATTERN SYSTEM.
+ * Settings-Menü, Extreme Mode & TRUE DYNAMIC VSRG PATTERNS.
  */
 
 // --- 1. DATEN & KONFIGURATION ---
@@ -20,7 +20,8 @@ const songDatabase = [
     { title: "Wildunfall", url: "songs/Song 9.mp3", bpm: 240, genre: "hardstyle" }
 ];
 
-// Schwierigkeitsgrade (Slider Stufen 0-7)
+// Schwierigkeitsgrade (Slider Stufen 0-7) 
+// beatMin wird intern nicht mehr für den Rhythmus genutzt, Rhythmus ist jetzt 100% Song-basiert!
 const diffSettings = [
     { label: "BABY", threshold: 240, multiChance: 0.0, beatMin: 400, penalty: 10 },
     { label: "BEGINNER", threshold: 220, multiChance: 0.1, beatMin: 300, penalty: 20 },
@@ -46,10 +47,12 @@ let totalNotesSpawned = 0;
 // Life System
 let lives = 4;
 const maxLives = 4;
-const regenSpeed = 0.5; // Regeneration pro Frame
+const regenSpeed = 0.0008; // Regeneration pro Frame
 
-// Audio Kontext
+// Audio Kontext & Dynamik
 let audioCtx, analyser, dataArray, source, audio;
+let energyHistory = [];
+const HISTORY_MAX = 50;
 
 // Gameplay Objekte
 let notes = [];
@@ -92,9 +95,6 @@ const ctx = canvas.getContext("2d");
 
 // --- 3. INITIALISIERUNG & UI ---
 
-/**
- * Startet das System und lädt gespeicherte Nutzerdaten.
- */
 function initApp() {
     console.log("Initializing RythMix...");
     loadPersistentData();
@@ -102,7 +102,6 @@ function initApp() {
     initStars();
     updateLayout();
     
-    // Slider Limits im HTML sicherstellen
     const diffSlider = document.getElementById("diff-slider");
     if(diffSlider) diffSlider.max = diffSettings.length - 1;
 
@@ -122,9 +121,6 @@ function initSongList() {
     });
 }
 
-/**
- * Schaltet zwischen den Screens um (Settings Button Integration)
- */
 function toggleSettings(show) {
     const startScreen = document.getElementById("screen-start");
     const settingsScreen = document.getElementById("screen-settings");
@@ -185,9 +181,6 @@ function assignKey(lane) {
 
 // --- 5. PAUSE SYSTEM ---
 
-/**
- * Schaltet die Pause an/aus.
- */
 function togglePause() {
     if (!gameRunning) return;
 
@@ -239,13 +232,11 @@ function showPreGamePreview(url) {
 }
 
 function startGame(url) {
-    // Finde den passenden Song für das Pattern-System
     currentSong = songDatabase.find(s => encodeURI(s.url) === url || s.url === url) || songDatabase[0];
     
-    // Reset Stats & Patterns
     score = 0; combo = 0; maxCombo = 0; notesHit = 0; totalNotesSpawned = 0;
     lives = 4; notes = []; particles = [];
-    activePattern = null; patternIndex = 0;
+    activePattern = null; patternIndex = 0; energyHistory = [];
     
     document.getElementById("screen-game").classList.remove("hidden");
     document.getElementById("score").innerText = "0";
@@ -270,17 +261,12 @@ function setupAudio(url) {
     audio.onended = () => endGame();
 }
 
-/**
- * Die Hauptschleife des Gameplays.
- */
 function gameLoop() {
     if (!gameRunning || isPaused) return;
 
-    // Canvas Reinigung & Background
     ctx.fillStyle = "#0a0a0e";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     
-    // Regeneration & Death Check
     if (lives < maxLives) lives += regenSpeed;
     if (lives <= 0) { endGame(); return; }
 
@@ -306,36 +292,76 @@ function drawLifeBar() {
     ctx.shadowBlur = 0;
 }
 
+// --- ECHTE AUDIO ANALYSE (MUSIK-BASIERT) ---
 function handleAudioAnalysis() {
     analyser.getByteFrequencyData(dataArray);
-    let bass = dataArray[2]; // Tiefenbereich
-    let now = Date.now();
-    const minGap = diffSettings[currentDiffIdx].beatMin;
+    
+    // Frequenzbereiche aufteilen
+    let bass = 0; // Kicks & tiefe Bässe
+    let mids = 0; // Snares, Hi-Hats, Synths
+    
+    for(let i = 0; i < 10; i++) bass += dataArray[i];
+    for(let i = 20; i < 60; i++) mids += dataArray[i];
+    
+    bass = bass / 10;
+    mids = mids / 40;
 
-    if (bass > threshold && (now - lastBeatTime > minGap)) {
-        spawnNote();
-        lastBeatTime = now;
+    // Dynamischer Durchschnitt (Erkennt Peaks im Song automatisch)
+    energyHistory.push(bass);
+    if (energyHistory.length > HISTORY_MAX) energyHistory.shift();
+    
+    let avgBass = energyHistory.reduce((a,b) => a+b, 0) / energyHistory.length;
+    let now = Date.now();
+    
+    // Fester minimaler Cooldown, unabhängig vom Difficulty Slider (ca. 70ms = sehr schnelle Streams möglich)
+    const minGap = 70; 
+
+    if (now - lastBeatTime > minGap) {
+        // Harter Beat (z.B. Kick-Drum) bricht durch den Durchschnitt
+        if (bass > avgBass * 1.35 && bass > 120) {
+            spawnNote("kick");
+            lastBeatTime = now;
+        } 
+        // Schnelle Elemente (z.B. Snare/Hats), wenn der Bass gerade ruhig ist
+        else if (mids > 130 && bass <= avgBass * 1.2) {
+            spawnNote("snare");
+            lastBeatTime = now;
+        }
     }
 }
 
-// --- VSRG PATTERN HELPER ---
-function getPatternForGenre(genre) {
-    const pools = {
-        "hardstyle": ["CHORDJACK", "JUMPSTREAM", "MINIJACK"],
-        "tech": ["STAIRCASE", "REVERSE_STAIRCASE", "MINIJACK", "SINGLE_STREAM"],
-        "stream": ["ROLL", "SINGLE_STREAM", "STAIRCASE"],
-        "default": ["SINGLE_STREAM", "ROLL"]
-    };
+// --- VSRG PATTERN HELPER (DYNAMISCH) ---
+function getPatternForGenre(genre, beatType) {
+    let pools = {};
+    
+    if (beatType === "kick") {
+        // Kicks erzeugen wuchtige Patterns (Chords, Jumps)
+        pools = {
+            "hardstyle": ["CHORDJACK", "JUMPSTREAM"],
+            "tech": ["MINIJACK", "CHORDJACK"],
+            "stream": ["STAIRCASE", "JUMPSTREAM"],
+            "default": ["CHORDJACK"]
+        };
+    } else {
+        // Snares/Mitten erzeugen fließende Patterns (Streams, Rolls)
+        pools = {
+            "hardstyle": ["SINGLE_STREAM", "MINIJACK"],
+            "tech": ["SINGLE_STREAM", "REVERSE_STAIRCASE"],
+            "stream": ["ROLL", "SINGLE_STREAM"],
+            "default": ["SINGLE_STREAM"]
+        };
+    }
+    
     const pool = pools[genre] || pools["default"];
     const pName = pool[Math.floor(Math.random() * pool.length)];
     return VSRG_PATTERNS[pName];
 }
 
-function spawnNote() {
-    // 1. Wenn Pattern zu Ende, weise ein neues passend zum Genre zu
+function spawnNote(beatType) {
+    // 1. Wenn Pattern zu Ende, weise ein neues passend zum Genre UND zum aktuellen Beat-Typ zu
     if (!activePattern || patternIndex >= activePattern.length) {
         let genre = currentSong ? currentSong.genre : "default";
-        activePattern = getPatternForGenre(genre);
+        activePattern = getPatternForGenre(genre, beatType);
         patternIndex = 0;
     }
 
@@ -354,7 +380,7 @@ function spawnNote() {
 
     patternIndex++;
 
-    // Chance auf zusätzliche Doppel-Noten (Originale Logik bleibt intakt, überschneidet sich aber nicht mit Pattern)
+    // Extra Chance basierend auf der Schwierigkeit für absolutes Chaos
     if (Math.random() < diffSettings[currentDiffIdx].multiChance) {
         let extraLane = Math.floor(Math.random() * 4);
         if (!lanesToSpawn.includes(extraLane)) {
@@ -371,7 +397,6 @@ function updateNotes() {
         let n = notes[i];
         n.y += (scrollDirection === "down") ? scrollSpeed : -scrollSpeed;
         
-        // Zeichnen
         let cx = n.lane * laneWidth + (laneWidth / 2);
         ctx.fillStyle = (n.type === "trap") ? "#ffffff" : laneColors[n.lane];
         ctx.shadowBlur = 15; ctx.shadowColor = ctx.fillStyle;
@@ -389,12 +414,11 @@ function updateNotes() {
             ctx.stroke();
         }
 
-        // Miss Check
         const isOut = (scrollDirection === "down") ? (n.y > canvas.height + 50) : (n.y < -50);
         if (isOut) {
             if (n.type === "tap") {
-                score = Math.max(0, score - 50); // MINUS PUNKTE
-                lives -= 1; // LEBEN ABZUG
+                score = Math.max(0, score - 50); 
+                lives -= 1; 
                 resetCombo();
                 updateUI("MISS", "#ff0000");
             }
@@ -449,7 +473,6 @@ function drawEnvironment() {
     const hitZoneY = (scrollDirection === "down") ? canvas.height * 0.85 : canvas.height * 0.15;
     
     for (let i = 0; i < 4; i++) {
-        // Glow
         if (laneGlow[i] > 0) {
             ctx.fillStyle = laneColors[i];
             ctx.globalAlpha = laneGlow[i] / 20;
@@ -457,7 +480,6 @@ function drawEnvironment() {
             ctx.globalAlpha = 1;
             laneGlow[i]--;
         }
-        // Hit Circle
         ctx.strokeStyle = "rgba(255,255,255,0.2)";
         ctx.lineWidth = 3;
         ctx.beginPath();
@@ -555,7 +577,6 @@ function loadPersistentData() {
         noteSize = data.noteSize || noteSize;
         currentDiffIdx = data.currentDiffIdx || 2;
         
-        // UI Sync
         updateDifficulty(currentDiffIdx);
         document.getElementById("diff-slider").value = currentDiffIdx;
         document.getElementById("speed-slider").value = scrollSpeed;
@@ -572,7 +593,6 @@ function endGame() {
     document.getElementById("final-score").innerText = Math.floor(score);
     document.getElementById("final-combo").innerText = maxCombo;
     
-    // Leaderboard
     let lb = JSON.parse(localStorage.getItem('rythMix_LB')) || [];
     lb.push({ score: Math.floor(score), date: new Date().toLocaleDateString() });
     lb.sort((a, b) => b.score - a.score);
