@@ -16,7 +16,8 @@ const songDatabase = [
     { title: "Controlele", url: "songs/Song 5.mp3", bpm: 110 },
     { title: "D.M.", url: "songs/Song 6.mp3", bpm: 132 },
     { title: "Synth Wave", url: "songs/Song 7.mp3", bpm: 100 },
-    { title: "Hyper Drive", url: "songs/Song 8.mp3", bpm: 180 }
+    { title: "Hyper Drive", url: "songs/Song 8.mp3", bpm: 180 },
+    { title: "Wildunfall", url: "songs/Song 9.mp3", bpm: 240 }
 ];
 
 // Schwierigkeitsgrade (Slider Stufen 0-7)
