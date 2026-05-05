@@ -23,13 +23,13 @@ const songDatabase = [
 
 // "Why are you here" entfernt
 const diffSettings = [
-    { label: "BABY", threshold: 240, multiChance: 0.0, penalty: 10 },
-    { label: "BEGINNER", threshold: 220, multiChance: 0.1, penalty: 20 },
-    { label: "NORMALO", threshold: 200, multiChance: 0.2, penalty: 25 },
-    { label: "EXPERT", threshold: 180, multiChance: 0.4, penalty: 40 },
-    { label: "HACKER", threshold: 160, multiChance: 0.6, penalty: 60 },
-    { label: "ELITE", threshold: 145, multiChance: 0.8, penalty: 80 },
-    { label: "GOD", threshold: 130, multiChance: 1.0, penalty: 100 }
+    { label: "BABY", threshold: 240, multiChance: 0.0, penalty: 300 },
+    { label: "BEGINNER", threshold: 220, multiChance: 0.1, penalty: 300 },
+    { label: "NORMALO", threshold: 200, multiChance: 0.2, penalty: 300 },
+    { label: "EXPERT", threshold: 180, multiChance: 0.4, penalty: 300 },
+    { label: "HACKER", threshold: 160, multiChance: 0.6, penalty: 300 },
+    { label: "ELITE", threshold: 145, multiChance: 0.8, penalty: 300 },
+    { label: "GOD", threshold: 130, multiChance: 1.0, penalty: 300 }
 ];
 
 // --- 2. MANIA PATTERNS ---
